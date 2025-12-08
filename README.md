@@ -1,1 +1,1 @@
-GitHub pages for Walkthroughs
+GitHub pages for Walkthrough
