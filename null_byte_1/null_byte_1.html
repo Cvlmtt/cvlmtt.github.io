@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Null Byte 1 – Walkthrough</title>
+
+  <!-- Project-wide theme -->
+  <link rel="stylesheet" href="../style/style.css" />
+
+  <!-- Walkthrough-specific styles -->
+  <link rel="stylesheet" href="nb1.css" />
+</head>
+
+<body>
+
+  <header class="site-header">
+    <div class="container">
+      <h1>Null Byte 1</h1>
+      <p class="subtitle">Walkthrough – translated in B2 technical English</p>
+      <div class="nb1-top-nav">
+        <a href="../index.html">← Back to index</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="nb1-article">
+
+    <h2>Null Byte 1</h2>
+
+    <p>
+      After downloading the <code>.ova</code> file and configuring the virtual machine so that it was connected to a lab network,
+      the first thing I did was to run a scan on the lab network itself to check which IP address was assigned to the virtual machine.
+      I used <code>nmap</code> to scan the network. With the flag <code>-sV</code> I performed port scanning and service/version detection.
+      With the flag <code>-Pn</code> I told <code>nmap</code> to consider all hosts as alive. Finally, with <code>-T4</code> I set a faster scan,
+      increasing parallelism and decreasing client response timeouts. The command I ran is:
+    </p>
+
+    <pre><code>nmap -sV -Pn -T4 192.168.56.0/24</code></pre>
+
+    <a class="nb1-img-link" href="img/null-bytes-nmap.png" data-caption="Nmap discovery scan on the lab subnet">
+      <img src="img/null-bytes-nmap.png" alt="NullByte nmap discovery" />
+    </a>
+
+    <p>
+      <code>nmap</code> detected a host with IP address <code>192.168.56.232</code> and three open ports:
+    </p>
+
+    <p>
+      - <strong>80/HTTP</strong>: an Apache web server (v2.4.10)<br />
+      - <strong>111/rpcbind</strong>: some services are not assigned to a specific port and change their port at every system boot;
+      rpcbind is a port mapping service that allows queries to learn on which port a given service is running<br />
+      - <strong>777/ssh</strong>: classic secure shell
+    </p>
+
+    <p>
+      Since a web server is present, it could be a good choice to verify what this web server exposes in terms of pages.
+      Visiting <code>http://192.168.56.232</code> from the browser we see:
+    </p>
+
+    <a class="nb1-img-link" href="img/nullbyt-web-page.png" data-caption="Web page on port 80">
+      <img src="img/nullbyt-web-page.png" alt="NullByte web page" />
+    </a>
+
+    <p>
+      This does not seem to give us much information. Let us analyze the page structure to see if there is hidden information.
+      To do this we can use <code>curl</code>, which queries the web server and prints the HTML structure of the index page in the CLI.
+      So we run <code>curl http://192.168.56.232</code> and we obtain:
+    </p>
+
+    <a class="nb1-img-link" href="img/nullbyte-curl-web-page.png" data-caption="curl output – HTML source inspection">
+      <img src="img/nullbyte-curl-web-page.png" alt="Curl web page" />
+    </a>
+
+    <p>
+      We can notice that the image visible in the browser is named <code>main.gif</code>. Hmm, I wonder if it hides something interesting.
+      Let us download it and analyze it. We download the image by running <code>wget 192.168.56.232/main.gif</code>, and once we have a local copy
+      we use <code>strings</code> on the file, which prints the printable characters of the input file:
+    </p>
+
+    <pre><code>wget 192.168.56.232/main.gif
+
+strings main.gif</code></pre>
+
+    <p>The beginning of the file is the following:</p>
+
+    <a class="nb1-img-link" href="img/nullbyte-string-main-gif.png" data-caption="strings output on main.gif">
+      <img src="img/nullbyte-string-main-gif.png" alt="Strings output main.gif" />
+    </a>
+
+    <p>
+      On the second line we can notice a particular sequence of characters: <code>P-): kzMb5nVYJw</code>.
+      It looks like an “anomalous” string compared to the rest of the file. Let us try to understand if the string <code>kzMb5nVYJw</code>
+      can be useful in some way.
+    </p>
+
+    <p>
+      Since we saw that the machine exposes SSH on port 777, we could think it is a password to access via SSH, but unfortunately we do not know
+      any valid user on the system, so if it is an SSH password it would be unusable right now. So let us try to use <code>kzMb5nVYJw</code> in the URL:
+      <code>192.168.56.232/kzMb5nVYJw/</code>.
+    </p>
+
+    <a class="nb1-img-link" href="img/null-byte-key-form.png" data-caption="Key form under /kzMb5nVYJw/">
+      <img src="img/null-byte-key-form.png" alt="Key form" />
+    </a>
+
+    <p>
+      We still have no information about the key, so besides some classic guesses like <code>root</code>, <code>admin</code>, etc.,
+      we should try to guess, or we can try to find the required key with different tools, for example Hydra or Burp Suite.
+      Personally, I started both tools and Hydra was the first to provide a result, so let us see how to run it.
+    </p>
+
+    <p>
+      Hydra is basically a tool for brute-force and dictionary attacks against authentication protocols.
+      Therefore it needs parameters like a username and a password wordlist to try. In our case, the page does not require any username but only a key,
+      so with <code>-l null</code> we indicate that no username is needed. With <code>-P</code> we specify the path of the wordlist to use.
+      Then we specify the IP address (or domain) of the target. We also need to specify to Hydra the protocol we want to attack, in this case HTTP with a POST request,
+      so we use: <code>http-post-form</code>.
+    </p>
+
+    <p>
+      We also need to provide Hydra with two details: where to insert the password/key and how to detect when the password is wrong.
+      <br />
+      So we test a random password to get an error, in order to understand how the form behaves when we submit a wrong key and then “instruct” Hydra.
+      In this case I used the key <code>test</code> and the result was:
+    </p>
+
+    <a class="nb1-img-link" href="img/null-byte-wrong-password.png" data-caption="Wrong key response">
+      <img src="img/null-byte-wrong-password.png" alt="Wrong passowrd" />
+    </a>
+
+    <p>
+      Now we use <code>curl</code> to analyze the HTML structure of the page and understand where Hydra should insert the password:
+    </p>
+
+    <pre><code>curl http://192.168.56.232/kzMb5nVYJw/</code></pre>
+
+    <a class="nb1-img-link" href="img/null-byte-form-key-curl.png" data-caption="curl output used to inspect the form fields">
+      <img src="img/null-byte-form-key-curl.png" alt="Curl request" />
+    </a>
+
+    <p>
+      We can see that the input field has attribute <code>name="key"</code>, so we have all the information we need to run Hydra:
+    </p>
+
+    <pre><code>hydra -l null -P /usr/share/wordlist/rockyou.txt IP_ADDRESS http-post-form "/kzMb5nVYJw/:key=^PASS^:invalid key"</code></pre>
+
+    <p>Hydra took less than 5 minutes to find a password:</p>
+
+    <a class="nb1-img-link" href="img/null-byte-hydra.png" data-caption="Hydra output – key found">
+      <img src="img/null-byte-hydra.png" alt="Hydra output" />
+    </a>
+
+    <p>The password found by Hydra is <code>elite</code>. Let us enter it in the form:</p>
+
+    <a class="nb1-img-link" href="img/null-byte-step-2.png" data-caption="Second step after submitting the key">
+      <img src="img/null-byte-step-2.png" alt="Second step" />
+    </a>
+
+    <p>
+      By submitting the form with no input, we can see the request is:
+      <code>http://192.168.56.232/kzMb5nVYJw/420search.php?usrtosearch=</code>
+      and a list of employees is printed:
+    </p>
+
+    <a class="nb1-img-link" href="img/null-byte-employee-list.png" data-caption="Employee list (ramses, isis)">
+      <img src="img/null-byte-employee-list.png" alt="Emploiyee list" />
+    </a>
+
+    <p>
+      We now have two employee names, <strong>ramses</strong> and <strong>isis</strong>, with their employment status. We can assume there are system users associated with the employees
+      and that we can access via SSH. Now that we have usernames, we need to find their passwords.
+    </p>
+
+    <p>We can reuse Hydra in the following way:</p>
+
+    <pre><code>hydra -l ramses -t 32 -P /usr/share/wordlists/rockyou.txt ssh://192.168.56.232 -s 777</code></pre>
+
+    <p>
+      In this case we specify the username with <code>-l</code>. With <code>-t</code> we specify the number of parallel connections per target
+      (default is 16; I increased it to 32). Then we specify the wordlist and the target host/protocol, and finally the port with <code>-s</code>
+      (SSH is exposed on port 777 instead of the standard port 22).
+    </p>
+
+    <p>
+      Alternatively, we can try to use sqlmap together with John the Ripper. If we want to follow this approach, we should run sqlmap on the page we obtained
+      after submitting the empty form (no username), in order to enumerate the DBMS:
+    </p>
+
+    <pre><code>sqlmap -u http://192.168.56.232/kzMb5nVYJw/420search.php?usrtosearch= --dbs</code></pre>
+
+    <p>Sqlmap identifies MySQL as the DBMS and 5 databases:</p>
+
+    <a class="nb1-img-link" href="img/null-byte-sqlmap.png" data-caption="sqlmap output – MySQL and databases">
+      <img src="img/null-byte-sqlmap.png" alt="Sqlmap" />
+    </a>
+
+    <p>
+      We can see that besides default schemas there is a schema <code>seth</code>. We can try to search this schema for useful information.
+      We can reuse sqlmap like this:
+    </p>
+
+    <pre><code>sqlmap -u http://192.168.56.204/kzMb5nVYJw/420search.php?usrtosearch=1 --dump --columns --tables -D seth</code></pre>
+
+    <p>
+      Here we specified the URL by inserting the ID of the user ramses, which is 1.
+    </p>
+
+    <a class="nb1-img-link" href="img/sqlmap-user-enum.png" data-caption="sqlmap user enumeration in seth database">
+      <img src="img/sqlmap-user-enum.png" alt="Sqlmap" />
+    </a>
+    
+    <p>
+      We can see that for user ramses a password is also specified, as a hash encoded in base64. We copy the value and run:
+    </p>
+
+    <pre><code>echo "YzZkNmJkN2ViZjgwNmY0M2M3NmFjYzM2ODE3MDNiODE=" | base64 -d</code></pre>
+
+    <p>
+      to obtain the MD5 hash: <code>c6d6bd7ebf806f43c76acc3681703b81</code>. We can save this hash in a file and run John the Ripper:
+    </p>
+
+    <pre><code>john --format=raw-md5 --wordlist=/usr/share/wordlist/rockyou.txt hash.txt</code></pre>
+
+    <p>We see that John the Ripper finds the password <code>omega</code>.</p>
+
+    <a class="nb1-img-link" href="img/null-byte-john.png" data-caption="John output – omega recovered">
+      <img src="img/null-byte-john.png" alt="John out" />
+    </a>
+
+    <p>Also, even if it takes longer, Hydra finds the same password:</p>
+
+    <a class="nb1-img-link" href="img/null-byte-hydra-omega.png" data-caption="Hydra output – omega found too">
+      <img src="img/null-byte-hydra-omega.png" alt="Hydra out" />
+    </a>
+
+    <p>So we log in via SSH with the gathered credentials:</p>
+
+    <pre><code>ssh ramses@192.168.56.232 -p 777</code></pre>
+
+    <p>We must specify the port because SSH is not exposed on the standard port.</p>
+
+    <a class="nb1-img-link" href="img/null-byte-ramses-login.png" data-caption="SSH login as ramses">
+      <img src="img/null-byte-ramses-login.png" alt="Ramses login" />
+    </a>
+
+    <p>
+      Perfect! We logged in as user ramses. Now we need to understand how we can get root privileges. Let us start looking for useful information.
+    </p>
+
+    <a class="nb1-img-link" href="img/null-byte-ramses-home.png" data-caption="Home directory of ramses">
+      <img src="img/null-byte-ramses-home.png" alt="Ramses home" />
+    </a>
+
+    <p>
+      At first glance there are no relevant files, but we can check if there is something in <code>.bash_history</code>:
+    </p>
+
+    <a class="nb1-img-link" href="img/null-byte-bash-history.png" data-caption=".bash_history showing .procwatch execution">
+      <img src="img/null-byte-bash-history.png" alt="Bash history" />
+    </a>
+
+    <p>
+      We can see that the user executed the process <code>/var/www/backup/.procwatch</code>. Let us see what it is.
+      We can see that in the folder, besides the executable, there is a file <code>readme.txt</code>, but it does not contain much information.
+    </p>
+
+    <a class="nb1-img-link" href="img/null-byte-procwatch.png" data-caption="procwatch executable and readme.txt">
+      <img src="img/null-byte-procwatch.png" alt="Procwatch" />
+    </a>
+
+    <p>
+      However, we notice that the executable <code>.procwatch</code> has the SUID bit set, which means that whoever executes the program,
+      the process will run with root privileges. Let us run the program to see what happens.
+    </p>
+
+    <a class="nb1-img-link" href="img/null-byte-procwatch-exec.png" data-caption="Executing .procwatch (SUID)">
+      <img src="img/null-byte-procwatch-exec.png" alt="Procwatch exec" />
+    </a>
+
+    <p>
+      The program <code>.procwatch</code> runs <code>ps</code> with root privileges.
+      Therefore, we can perform a PATH hijacking attack to force <code>.procwatch</code> to use a file we control instead of <code>ps</code>.
+      To do this we run:
+    </p>
+
+    <pre><code>cp /bin/sh /tmp/ps</code></pre>
+
+    <p>
+      In this way we rename the <code>sh</code> binary to <code>ps</code> and copy it into a directory we choose.
+      Then we force the system to search for commands in our directory first (and then in standard directories) with:
+    </p>
+
+    <pre><code>export PATH=/tmp:${PATH}</code></pre>
+
+    <p>
+      At this point we can simply execute <code>.procwatch</code>. Once we get a root shell, we can navigate to <code>/root</code> and read
+      <code>proof.txt</code> to get the flag:
+    </p>
+
+    <a class="nb1-img-link" href="img/null-byte-flag.png" data-caption="Flag proof.txt">
+      <img src="img/null-byte-flag.png" alt="Flag" />
+    </a>
+
+  </main>
+
+  <!-- Lightbox overlay -->
+  <div id="nb1-lightbox" class="nb1-lightbox" aria-hidden="true">
+    <div class="nb1-lightbox-inner">
+      <button id="nb1-lightbox-close" class="nb1-lightbox-close" type="button" aria-label="Close image">Close</button>
+      <img id="nb1-lightbox-img" class="nb1-lightbox-img" src="" alt="" />
+      <div id="nb1-lightbox-caption" class="nb1-lightbox-caption"></div>
+    </div>
+  </div>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>© 2025 – Walkthroughs by <strong>tuo-username</strong></p>
+    </div>
+  </footer>
+
+  <script src="nb1.js"></script>
+</body>
+</html>

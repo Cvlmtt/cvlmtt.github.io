@@ -1,0 +1,169 @@
+/* nb1.css - page-specific styles for Null Byte 1 walkthrough
+   Sits on top of ../style/style.css (project-wide theme)
+*/
+
+:root{
+  --nb1-body-size: 1.05rem;
+  --nb1-code-size: 0.98rem;
+}
+
+.nb1-article{
+  max-width: 920px;
+  margin: 40px auto;
+  padding: 0 20px;
+}
+
+.nb1-article p{
+  font-size: var(--nb1-body-size);
+  line-height: 1.75;
+  margin-bottom: 16px;
+  color: #d1d5db;
+}
+
+.nb1-article h2, .nb1-article h3{
+  margin-top: 38px;
+  margin-bottom: 14px;
+  font-weight: 600;
+  color: #f3f4f6;
+}
+
+.nb1-article a{
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(121, 192, 255, 0.6);
+  text-underline-offset: 3px;
+}
+
+.nb1-article a:hover{
+  text-decoration-color: rgba(45, 212, 191, 0.85);
+}
+
+.nb1-article pre{
+  background-color: #050608;
+  border: 1px solid #1f2430;
+  border-radius: 8px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 18px 0;
+  color: #e5e5e5;
+  font-size: var(--nb1-code-size);
+  line-height: 1.55;
+}
+
+.nb1-article code{
+  color: #a2ff52;
+}
+
+.nb1-note{
+  border-left: 3px solid #2dd4bf;
+  padding: 12px 12px;
+  margin: 18px 0;
+  background: rgba(17, 24, 39, 0.35);
+  border-radius: 8px;
+  color: #d1d5db;
+  font-size: 1.0rem;
+  line-height: 1.65;
+}
+
+.nb1-top-nav{
+  margin-top: 10px;
+  font-size: 0.95rem;
+  color: #9ca3af;
+}
+
+.nb1-top-nav a{
+  text-decoration: none;
+  border: 1px solid #272b36;
+  padding: 7px 12px;
+  border-radius: 999px;
+  display: inline-block;
+  background-color: rgba(17, 24, 39, 0.55);
+}
+
+.nb1-top-nav a:hover{
+  border-color: #2dd4bf;
+}
+
+.nb1-img-link{
+  display: block;
+  margin: 14px 0;
+  border-radius: 8px;
+  border: 1px solid #1f2430;
+  overflow: hidden;
+  cursor: zoom-in;
+  transition: border-color 0.16s ease-out, transform 0.16s ease-out;
+}
+
+.nb1-img-link:hover{
+  border-color: #2dd4bf;
+  transform: translateY(-2px);
+}
+
+.nb1-img-link img{
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Lightbox */
+.nb1-lightbox{
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 9999;
+}
+
+.nb1-lightbox.open{
+  display: flex;
+}
+
+.nb1-lightbox-inner{
+  max-width: 1280px;
+  width: 100%;
+  max-height: 92vh;
+  position: relative;
+}
+
+.nb1-lightbox-img{
+  width: 100%;
+  height: auto;
+  max-height: 92vh;
+  object-fit: contain;
+  border-radius: 10px;
+  border: 1px solid #1f2430;
+  background: #050608;
+}
+
+.nb1-lightbox-caption{
+  margin-top: 10px;
+  font-size: 0.95rem;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.nb1-lightbox-close{
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  border: 1px solid #272b36;
+  background: rgba(17, 24, 39, 0.85);
+  color: #e5e5e5;
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.nb1-lightbox-close:hover{
+  border-color: #2dd4bf;
+}
+
+@media (max-width: 520px){
+  :root{
+    --nb1-body-size: 1.08rem;
+    --nb1-code-size: 0.98rem;
+  }
+}
